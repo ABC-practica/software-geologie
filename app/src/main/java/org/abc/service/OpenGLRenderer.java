@@ -17,7 +17,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class OpenGLRenderer implements RendererControl, Movable, Renderer, Rotatable, Runnable, Zoomable {
+public class OpenGLRenderer implements RendererControl,GLRenderer, Movable, Renderer, Rotatable, Runnable, Zoomable {
 
     private volatile long window;
     private volatile int windowWidth = 800;
@@ -161,7 +161,7 @@ public class OpenGLRenderer implements RendererControl, Movable, Renderer, Rotat
         GLFW.glfwSetWindowCloseCallback(window, w -> running = false);
     }
 
-    private void renderLoop() {
+    public void renderLoop() {
         try {
             GLFW.glfwMakeContextCurrent(window);
 
@@ -185,7 +185,7 @@ public class OpenGLRenderer implements RendererControl, Movable, Renderer, Rotat
         }
     }
 
-    private void initializeOpenGL() {
+    public void initializeOpenGL() {
         GL11.glEnable(GL11.GL_DEPTH_TEST);
         GL11.glEnable(GL11.GL_LIGHTING);
         GL11.glEnable(GL11.GL_LIGHT0);
@@ -413,7 +413,7 @@ public class OpenGLRenderer implements RendererControl, Movable, Renderer, Rotat
         return id;
     }
 
-    private void updateProjection(int width, int height) {
+    public void updateProjection(int width, int height) {
         if (height <= 0) {
             return;
         }
@@ -441,7 +441,7 @@ public class OpenGLRenderer implements RendererControl, Movable, Renderer, Rotat
         GL11.glMatrixMode(GL11.GL_MODELVIEW);
     }
 
-    private void drawMesh(ScanMesh mesh) {
+    public void drawMesh(ScanMesh mesh) {
         float[] vertices = mesh.getVertices();
         int[] indices = mesh.getIndices();
         float[] uvs = mesh.getTextureCoordinates();
@@ -529,7 +529,7 @@ public class OpenGLRenderer implements RendererControl, Movable, Renderer, Rotat
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, id == null ? 0 : id);
     }
 
-    private void cleanupOpenGL() {
+    public void cleanupOpenGL() {
         for (int id : textureIds.values()) {
             GL11.glDeleteTextures(id);
         }
