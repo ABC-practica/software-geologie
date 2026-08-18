@@ -9,7 +9,9 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
+import org.abc.model.ObjectTransform;
 
+import java.util.ArrayList;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.HashMap;
@@ -29,19 +31,28 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
     private volatile float cameraDistance = 2.5f;
 
-    private volatile float positionX;
-    private volatile float positionY;
-    private volatile float positionZ;
+    private volatile float cameraPositionX = 0.0f;
+    private volatile float cameraPositionY = 0.0f;
+    private volatile float cameraPositionZ = 0.0f;
 
-    private volatile float rotationX = 25.0f;
-    private volatile float rotationY = 35.0f;
-    private volatile float rotationZ;
+    private volatile float cameraRotationX = 0.0f;
+    private volatile float cameraRotationY = 0.0f;
+    private volatile float cameraRotationZ = 0.0f;
+
+    private final List<ObjectTransform> transforms = new ArrayList<>();
+
+    private int selectedObject = -1;
 
     private double lastMouseX;
     private double lastMouseY;
 
+    private volatile double pendingClickX = -1;
+    private volatile double pendingClickY = -1;
+
     private volatile boolean rotating;
     private volatile boolean moving;
+    private volatile boolean cameraRotating;
+    private volatile boolean cameraMoving;
 
     private volatile boolean running;
     private volatile boolean renderFinished;
@@ -55,6 +66,15 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
     public OpenGLRenderer(List<ScanMesh> objects) {
         this.objects = objects;
+
+        for (int i = 0; i < objects.size(); i++) {
+            ObjectTransform transform = new ObjectTransform();
+
+            // Preserve your original initial camera/object rotation
+            transform.rotate(25.0f, 35.0f, 0.0f);
+
+            transforms.add(transform);
+        }
     }
 
     @Override
@@ -125,35 +145,88 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         });
 
         GLFW.glfwSetMouseButtonCallback(window, (w, button, action, mods) -> {
-            if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
-                rotating = action == GLFW.GLFW_PRESS;
-            }
 
-            if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
-                moving = action == GLFW.GLFW_PRESS;
-            }
+            double[] x = new double[1];
+            double[] y = new double[1];
 
-            if (rotating || moving) {
-                double[] x = new double[1];
-                double[] y = new double[1];
+            GLFW.glfwGetCursorPos(window, x, y);
 
-                GLFW.glfwGetCursorPos(window, x, y);
+            if (action == GLFW.GLFW_PRESS) {
 
                 lastMouseX = x[0];
                 lastMouseY = y[0];
+
+                // LEFT MOUSE
+                if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+
+                    pendingClickX = x[0];
+                    pendingClickY = y[0];
+
+                    // We don't yet know whether this is
+                    // an object or the camera.
+                    rotating = false;
+                    cameraRotating = false;
+                }
+
+                // RIGHT MOUSE
+                if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+
+                    if (selectedObject >= 0) {
+                        moving = true;
+                        cameraMoving = false;
+                    } else {
+                        moving = false;
+                        cameraMoving = true;
+                    }
+                }
+            }
+
+            if (action == GLFW.GLFW_RELEASE) {
+
+                if (button == GLFW.GLFW_MOUSE_BUTTON_LEFT) {
+                    rotating = false;
+                    cameraRotating = false;
+                }
+
+                if (button == GLFW.GLFW_MOUSE_BUTTON_RIGHT) {
+                    moving = false;
+                    cameraMoving = false;
+                }
             }
         });
 
         GLFW.glfwSetCursorPosCallback(window, (w, x, y) -> {
+
             float dx = (float) (x - lastMouseX);
             float dy = (float) (y - lastMouseY);
 
+            // Rotate selected object
             if (rotating) {
-                rotate(dy * 0.5f, dx * 0.5f, 0.0f);
+
+                rotate(
+                        dy * 0.5f,
+                        dx * 0.5f,
+                        0.0f
+                );
             }
 
+            // Rotate camera
+            if (cameraRotating) {
+
+                cameraRotationX += dy * 0.5f;
+                cameraRotationY += dx * 0.5f;
+            }
+
+            // Move selected object
             if (moving) {
-                move(dx * 0.005f, -dy * 0.005f, 0.0f);
+                moveObjectWithCamera(dx, dy);
+            }
+
+            // Move camera
+            if (cameraMoving) {
+
+                cameraPositionX += dx * 0.005f;
+                cameraPositionY -= dy * 0.005f;
             }
 
             lastMouseX = x;
@@ -161,6 +234,64 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         });
 
         GLFW.glfwSetWindowCloseCallback(window, w -> running = false);
+    }
+
+    private void moveObjectWithCamera(float dx, float dy) {
+
+        float sensitivity = 0.005f;
+
+        // Mouse movement in screen space
+        float screenRight = dx * sensitivity;
+        float screenUp = -dy * sensitivity;
+
+        double pitch = Math.toRadians(cameraRotationX);
+        double yaw   = Math.toRadians(cameraRotationY);
+        double roll  = Math.toRadians(cameraRotationZ);
+
+        float cp = (float) Math.cos(pitch);
+        float sp = (float) Math.sin(pitch);
+
+        float cy = (float) Math.cos(yaw);
+        float sy = (float) Math.sin(yaw);
+
+        float cr = (float) Math.cos(roll);
+        float sr = (float) Math.sin(roll);
+
+        /*
+         * These are the camera's local axes expressed
+         * in WORLD space.
+         *
+         * They are obtained from the inverse of:
+         *
+         *     Rx(pitch) * Ry(yaw) * Rz(roll)
+         */
+
+        // Camera RIGHT
+        float rightX = cr * cy;
+        float rightY = -sr * cy;
+        float rightZ = sy;
+
+        // Camera UP
+        float upX = sp * sy * cr + sr * cp;
+        float upY = -sp * sr * sy + cp * cr;
+        float upZ = -sp * cy;
+
+        /*
+         * Convert screen-space movement into world-space movement.
+         */
+        float worldX =
+                rightX * screenRight +
+                        upX * screenUp;
+
+        float worldY =
+                rightY * screenRight +
+                        upY * screenUp;
+
+        float worldZ =
+                rightZ * screenRight +
+                        upZ * screenUp;
+
+        move(worldX, worldY, worldZ);
     }
 
     private void renderLoop() {
@@ -219,12 +350,226 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         );
     }
 
+    private void drawMeshForPicking(ScanMesh mesh) {
+
+        float[] vertices = mesh.getVertices();
+        int[] indices = mesh.getIndices();
+
+        if (vertices == null || indices == null) {
+            return;
+        }
+
+        GL11.glBegin(GL11.GL_TRIANGLES);
+
+        for (int i = 0; i < indices.length; i += 3) {
+
+            int i1 = indices[i];
+            int i2 = indices[i + 1];
+            int i3 = indices[i + 2];
+
+            float[] p1 = getVertex(vertices, i1);
+            float[] p2 = getVertex(vertices, i2);
+            float[] p3 = getVertex(vertices, i3);
+
+            GL11.glVertex3f(
+                    p1[0],
+                    p1[1],
+                    p1[2]
+            );
+
+            GL11.glVertex3f(
+                    p2[0],
+                    p2[1],
+                    p2[2]
+            );
+
+            GL11.glVertex3f(
+                    p3[0],
+                    p3[1],
+                    p3[2]
+            );
+        }
+
+        GL11.glEnd();
+    }
+
     private void processCommands() {
         Runnable command;
 
         while ((command = commands.poll()) != null) {
             command.run();
         }
+
+        if (pendingClickX >= 0 && pendingClickY >= 0) {
+
+            double x = pendingClickX;
+            double y = pendingClickY;
+
+            pendingClickX = -1;
+            pendingClickY = -1;
+
+            pickObject(x, y);
+        }
+    }
+
+    private void pickObject(double mouseX, double mouseY) {
+
+        updateViewport();
+
+        GL11.glClear(
+                GL11.GL_COLOR_BUFFER_BIT |
+                        GL11.GL_DEPTH_BUFFER_BIT
+        );
+
+        GL11.glDisable(GL11.GL_LIGHTING);
+        GL11.glDisable(GL11.GL_TEXTURE_2D);
+        GL11.glDisable(GL11.GL_COLOR_MATERIAL);
+
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glLoadIdentity();
+
+        GL11.glTranslatef(
+                cameraPositionX,
+                cameraPositionY,
+                cameraPositionZ - cameraDistance
+        );
+
+        GL11.glRotatef(
+                cameraRotationX,
+                1.0f,
+                0.0f,
+                0.0f
+        );
+
+        GL11.glRotatef(
+                cameraRotationY,
+                0.0f,
+                1.0f,
+                0.0f
+        );
+
+        GL11.glRotatef(
+                cameraRotationZ,
+                0.0f,
+                0.0f,
+                1.0f
+        );
+
+        for (int i = 0; i < objects.size(); i++) {
+
+            ObjectTransform transform = transforms.get(i);
+
+            GL11.glPushMatrix();
+
+            GL11.glTranslatef(
+                    transform.getPositionX(),
+                    transform.getPositionY(),
+                    transform.getPositionZ()
+            );
+
+            GL11.glRotatef(
+                    transform.getRotationX(),
+                    1.0f,
+                    0.0f,
+                    0.0f
+            );
+
+            GL11.glRotatef(
+                    transform.getRotationY(),
+                    0.0f,
+                    1.0f,
+                    0.0f
+            );
+
+            GL11.glRotatef(
+                    transform.getRotationZ(),
+                    0.0f,
+                    0.0f,
+                    1.0f
+            );
+
+            // Object 0 = (1, 0, 0)
+            // Object 1 = (2, 0, 0)
+            // Object 2 = (3, 0, 0)
+            int id = i + 1;
+
+            int r = id & 0xFF;
+            int g = (id >> 8) & 0xFF;
+            int b = (id >> 16) & 0xFF;
+
+            GL11.glColor3ub(
+                    (byte) r,
+                    (byte) g,
+                    (byte) b
+            );
+
+            drawMeshForPicking(objects.get(i));
+
+            GL11.glPopMatrix();
+        }
+
+        // Convert Java/GLFW mouse coordinates to OpenGL framebuffer coordinates
+        int pixelX = (int) mouseX;
+
+        int pixelY = windowHeight - (int) mouseY;
+
+        if (pixelX >= 0 &&
+                pixelX < windowWidth &&
+                pixelY >= 0 &&
+                pixelY < windowHeight) {
+
+            ByteBuffer pixel = ByteBuffer.allocateDirect(3);
+
+            GL11.glReadPixels(
+                    pixelX,
+                    pixelY,
+                    1,
+                    1,
+                    GL11.GL_RGB,
+                    GL11.GL_UNSIGNED_BYTE,
+                    pixel
+            );
+
+            int r = Byte.toUnsignedInt(pixel.get(0));
+            int g = Byte.toUnsignedInt(pixel.get(1));
+            int b = Byte.toUnsignedInt(pixel.get(2));
+
+            int id = r | (g << 8) | (b << 16);
+            System.out.println(id);
+
+            if (id == 0 || id > objects.size()) {
+
+                // Nothing was clicked
+                selectedObject = -1;
+
+                rotating = false;
+                cameraRotating = true;
+
+                System.out.println("[INFO] Nothing selected.");
+
+            } else {
+
+                int objectIndex = id - 1;
+
+                if (objectIndex >= 0 &&
+                        objectIndex < objects.size()) {
+
+                    selectedObject = objectIndex;
+
+                    rotating = true;
+                    cameraRotating = false;
+
+                    System.out.println(
+                            "[INFO] Selected object: "
+                                    + selectedObject
+                    );
+                }
+            }
+        }
+
+        GL11.glEnable(GL11.GL_LIGHTING);
+        GL11.glEnable(GL11.GL_TEXTURE_2D);
+        GL11.glEnable(GL11.GL_COLOR_MATERIAL);
     }
 
     @Override
@@ -271,14 +616,6 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     @Override
     public void resetCamera() {
         cameraDistance = 2.5f;
-
-        positionX = 0.0f;
-        positionY = 0.0f;
-        positionZ = 0.0f;
-
-        rotationX = 25.0f;
-        rotationY = 35.0f;
-        rotationZ = 0.0f;
     }
 
     @Override
@@ -300,13 +637,71 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         GL11.glMatrixMode(GL11.GL_MODELVIEW);
         GL11.glLoadIdentity();
 
-        GL11.glTranslatef(positionX, positionY, positionZ - cameraDistance);
-        GL11.glRotatef(rotationX, 1.0f, 0.0f, 0.0f);
-        GL11.glRotatef(rotationY, 0.0f, 1.0f, 0.0f);
-        GL11.glRotatef(rotationZ, 0.0f, 0.0f, 1.0f);
+        // Camera transform
+        GL11.glTranslatef(
+                cameraPositionX,
+                cameraPositionY,
+                cameraPositionZ - cameraDistance
+        );
 
-        for (ScanMesh object : objects) {
+        GL11.glRotatef(
+                cameraRotationX,
+                1.0f,
+                0.0f,
+                0.0f
+        );
+
+        GL11.glRotatef(
+                cameraRotationY,
+                0.0f,
+                1.0f,
+                0.0f
+        );
+
+        GL11.glRotatef(
+                cameraRotationZ,
+                0.0f,
+                0.0f,
+                1.0f
+        );
+
+        for (int i = 0; i < objects.size(); i++) {
+
+            ScanMesh object = objects.get(i);
+            ObjectTransform transform = transforms.get(i);
+
+            GL11.glPushMatrix();
+
+            GL11.glTranslatef(
+                    transform.getPositionX(),
+                    transform.getPositionY(),
+                    transform.getPositionZ()
+            );
+
+            GL11.glRotatef(
+                    transform.getRotationX(),
+                    1.0f,
+                    0.0f,
+                    0.0f
+            );
+
+            GL11.glRotatef(
+                    transform.getRotationY(),
+                    0.0f,
+                    1.0f,
+                    0.0f
+            );
+
+            GL11.glRotatef(
+                    transform.getRotationZ(),
+                    0.0f,
+                    0.0f,
+                    1.0f
+            );
+
             drawMesh(object);
+
+            GL11.glPopMatrix();
         }
 
         GLFW.glfwSwapBuffers(window);
@@ -550,15 +945,98 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
     @Override
     public void move(float x, float y, float z) {
-        positionX += x;
-        positionY += y;
-        positionZ += z;
+        if (selectedObject < 0 || selectedObject >= transforms.size()) {
+            return;
+        }
+        transforms.get(selectedObject).move(x, y, z);
     }
 
     @Override
     public void rotate(float x, float y, float z) {
-        rotationX += x;
-        rotationY += y;
-        rotationZ += z;
+        if (selectedObject < 0 || selectedObject >= transforms.size()) {
+            return;
+        }
+        transforms.get(selectedObject).rotate(x, y, z);
+    }
+
+    public void selectObject(int index) {
+
+        if (index < 0 || index >= objects.size()) {
+            return;
+        }
+
+        selectedObject = index;
+
+        System.out.println(
+                "[INFO] Selected object: " + selectedObject
+        );
+    }
+
+    public ObjectTransform getObjectTransform(int index) {
+        if (index < 0 || index >= transforms.size()) {
+            return null;
+        }
+
+        return transforms.get(index);
+    }
+
+    public void setObjectTransform(
+            int index,
+            float positionX,
+            float positionY,
+            float positionZ,
+            float rotationX,
+            float rotationY,
+            float rotationZ
+    ) {
+        if (index < 0 || index >= transforms.size()) {
+            return;
+        }
+
+        ObjectTransform transform = transforms.get(index);
+
+        transform.reset();
+
+        transform.move(
+                positionX,
+                positionY,
+                positionZ
+        );
+
+        transform.rotate(
+                rotationX,
+                rotationY,
+                rotationZ
+        );
+    }
+
+    public int getObjectCount() {
+        return objects.size();
+    }
+
+    public int getSelectedObject() {
+        return selectedObject;
+    }
+
+    public void resetSelectedObject() {
+        if (selectedObject < 0 || selectedObject >= transforms.size()) {
+            return;
+        }
+
+        transforms.get(selectedObject).reset();
+
+        // Restore your initial rotation
+        transforms.get(selectedObject).rotate(
+                25.0f,
+                35.0f,
+                0.0f
+        );
+    }
+
+    public void resetAllObjects() {
+        for (ObjectTransform transform : transforms) {
+            transform.reset();
+            transform.rotate(25.0f, 35.0f, 0.0f);
+        }
     }
 }
