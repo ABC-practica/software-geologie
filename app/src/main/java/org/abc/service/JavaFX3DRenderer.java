@@ -17,9 +17,11 @@ import javafx.stage.Stage;
 import org.abc.model.Material;
 import org.abc.model.ScanMesh;
 
+import java.util.List;
+
 public class JavaFX3DRenderer implements RenderStrategy {
 
-    private final ScanMesh scanMesh;
+    private final List<ScanMesh> scanMeshes;
     private Stage stage;
 
     private volatile float cameraDistance = 2.5f;
@@ -40,13 +42,17 @@ public class JavaFX3DRenderer implements RenderStrategy {
     private Translate tTransform;
     private Translate cameraTranslate;
 
-    public JavaFX3DRenderer(ScanMesh scanMesh) {
-        this.scanMesh = scanMesh;
+    public JavaFX3DRenderer(List<ScanMesh> scanMeshes) {
+        this.scanMeshes = scanMeshes;
     }
 
     @Override
     public void open() {
-        System.out.println("[INFO] JavaFX3DRenderer.open() called. FX Thread: " + Platform.isFxApplicationThread());
+        System.out.println(
+                "[INFO] JavaFX3DRenderer.open() called. FX Thread: "
+                        + Platform.isFxApplicationThread()
+        );
+
         if (Platform.isFxApplicationThread()) {
             initAndShowStage();
         } else {
@@ -55,151 +61,352 @@ public class JavaFX3DRenderer implements RenderStrategy {
     }
 
     private void initAndShowStage() {
-        System.out.println("[INFO] JavaFX3DRenderer.initAndShowStage() starting...");
+        System.out.println(
+                "[INFO] JavaFX3DRenderer.initAndShowStage() starting..."
+        );
+
         if (stage != null) {
             stage.show();
             stage.toFront();
-            System.out.println("[INFO] JavaFX3DRenderer stage brought to front.");
+
+            System.out.println(
+                    "[INFO] JavaFX3DRenderer stage brought to front."
+            );
+
             return;
         }
 
-        TriangleMesh mesh = buildTriangleMesh(scanMesh);
-        MeshView meshView = new MeshView(mesh);
+        /*
+         * Create a group containing all loaded models.
+         */
+        Group meshGroup = new Group();
 
-        PhongMaterial material = buildMaterial(scanMesh);
-        meshView.setMaterial(material);
+        for (ScanMesh scanMesh : scanMeshes) {
 
-        Group meshGroup = new Group(meshView);
+            TriangleMesh mesh =
+                    buildTriangleMesh(scanMesh);
 
-        rxTransform = new Rotate(rotationX, Rotate.X_AXIS);
-        ryTransform = new Rotate(rotationY, Rotate.Y_AXIS);
-        rzTransform = new Rotate(rotationZ, Rotate.Z_AXIS);
-        tTransform = new Translate(positionX, positionY, positionZ);
+            MeshView meshView =
+                    new MeshView(mesh);
 
-        meshGroup.getTransforms().addAll(tTransform, rxTransform, ryTransform, rzTransform);
+            PhongMaterial material =
+                    buildMaterial(scanMesh);
 
-        AmbientLight ambientLight = new AmbientLight(Color.rgb(100, 100, 100));
-        PointLight pointLight = new PointLight(Color.WHITE);
+            meshView.setMaterial(material);
+
+            meshGroup.getChildren().add(meshView);
+        }
+
+        /*
+         * These transforms are applied to the entire collection
+         * of models.
+         */
+        rxTransform =
+                new Rotate(rotationX, Rotate.X_AXIS);
+
+        ryTransform =
+                new Rotate(rotationY, Rotate.Y_AXIS);
+
+        rzTransform =
+                new Rotate(rotationZ, Rotate.Z_AXIS);
+
+        tTransform =
+                new Translate(
+                        positionX,
+                        positionY,
+                        positionZ
+                );
+
+        meshGroup.getTransforms().addAll(
+                tTransform,
+                rxTransform,
+                ryTransform,
+                rzTransform
+        );
+
+        AmbientLight ambientLight =
+                new AmbientLight(
+                        Color.rgb(100, 100, 100)
+                );
+
+        PointLight pointLight =
+                new PointLight(Color.WHITE);
+
         pointLight.setTranslateX(2.0);
         pointLight.setTranslateY(-3.0);
         pointLight.setTranslateZ(-4.0);
 
-        Group root = new Group(meshGroup, ambientLight, pointLight);
+        Group root =
+                new Group(
+                        meshGroup,
+                        ambientLight,
+                        pointLight
+                );
 
-        PerspectiveCamera camera = new PerspectiveCamera(true);
+        PerspectiveCamera camera =
+                new PerspectiveCamera(true);
+
         camera.setNearClip(0.1);
         camera.setFarClip(100.0);
 
-        cameraTranslate = new Translate(0, 0, -cameraDistance);
-        camera.getTransforms().add(cameraTranslate);
+        cameraTranslate =
+                new Translate(
+                        0,
+                        0,
+                        -cameraDistance
+                );
 
-        Scene scene = new Scene(root, 800, 600, true, SceneAntialiasing.BALANCED);
-        scene.setFill(Color.rgb(25, 25, 25));
+        camera.getTransforms().add(
+                cameraTranslate
+        );
+
+        Scene scene =
+                new Scene(
+                        root,
+                        800,
+                        600,
+                        true,
+                        SceneAntialiasing.BALANCED
+                );
+
+        scene.setFill(
+                Color.rgb(25, 25, 25)
+        );
+
         scene.setCamera(camera);
 
         setupMouseHandlers(scene);
 
         stage = new Stage();
-        stage.setTitle("3D Renderer (JavaFX 3D Fallback)");
+
+        stage.setTitle(
+                "3D Renderer (JavaFX 3D Fallback)"
+        );
+
         stage.setScene(scene);
 
-        stage.setOnCloseRequest(event -> close());
+        stage.setOnCloseRequest(
+                event -> close()
+        );
 
         stage.show();
-        System.out.println("[INFO] JavaFX 3D Stage shown successfully!");
+
+        System.out.println(
+                "[INFO] JavaFX 3D Stage shown successfully!"
+        );
+
+        System.out.println(
+                "[INFO] Rendered "
+                        + scanMeshes.size()
+                        + " model(s)."
+        );
     }
 
     private void setupMouseHandlers(Scene scene) {
+
         scene.setOnMousePressed(event -> {
             lastMouseX = event.getSceneX();
             lastMouseY = event.getSceneY();
         });
 
         scene.setOnMouseDragged(event -> {
-            double dx = event.getSceneX() - lastMouseX;
-            double dy = event.getSceneY() - lastMouseY;
+
+            double dx =
+                    event.getSceneX() - lastMouseX;
+
+            double dy =
+                    event.getSceneY() - lastMouseY;
 
             if (event.isPrimaryButtonDown()) {
-                rotate((float) -dy * 0.5f, (float) dx * 0.5f, 0.0f);
+
+                rotate(
+                        (float) -dy * 0.5f,
+                        (float) dx * 0.5f,
+                        0.0f
+                );
+
             } else if (event.isSecondaryButtonDown()) {
-                move((float) dx * 0.005f, (float) -dy * 0.005f, 0.0f);
+
+                move(
+                        (float) dx * 0.005f,
+                        (float) -dy * 0.005f,
+                        0.0f
+                );
             }
 
             lastMouseX = event.getSceneX();
             lastMouseY = event.getSceneY();
         });
 
-        scene.setOnScroll(event -> zoom((float) -event.getDeltaY() * 0.02f));
+        scene.setOnScroll(event ->
+                zoom(
+                        (float) -event.getDeltaY() * 0.02f
+                )
+        );
     }
 
-    public static TriangleMesh buildTriangleMesh(ScanMesh mesh) {
-        TriangleMesh triangleMesh = new TriangleMesh();
+    public static TriangleMesh buildTriangleMesh(
+            ScanMesh mesh
+    ) {
 
-        float[] vertices = mesh.getVertices();
+        TriangleMesh triangleMesh =
+                new TriangleMesh();
+
+        float[] vertices =
+                mesh.getVertices();
+
         if (vertices != null) {
-            triangleMesh.getPoints().setAll(vertices);
+            triangleMesh
+                    .getPoints()
+                    .setAll(vertices);
         }
 
-        float[] uvs = mesh.getTextureCoordinates();
+        float[] uvs =
+                mesh.getTextureCoordinates();
+
         if (uvs != null && uvs.length >= 2) {
-            triangleMesh.getTexCoords().setAll(uvs);
+
+            triangleMesh
+                    .getTexCoords()
+                    .setAll(uvs);
+
         } else {
-            triangleMesh.getTexCoords().setAll(0.0f, 0.0f);
+
+            triangleMesh
+                    .getTexCoords()
+                    .setAll(
+                            0.0f,
+                            0.0f
+                    );
         }
 
-        int[] indices = mesh.getIndices();
+        int[] indices =
+                mesh.getIndices();
+
         if (indices != null) {
-            int faceCount = indices.length / 3;
-            int[] faces = new int[faceCount * 6];
-            boolean hasUvs = uvs != null && uvs.length >= (indices.length * 2);
+
+            int faceCount =
+                    indices.length / 3;
+
+            int[] faces =
+                    new int[faceCount * 6];
+
+            boolean hasUvs =
+                    uvs != null
+                            && uvs.length >= indices.length * 2;
 
             for (int i = 0; i < faceCount; i++) {
-                int i1 = indices[i * 3];
-                int i2 = indices[i * 3 + 1];
-                int i3 = indices[i * 3 + 2];
 
-                faces[i * 6] = i1;
-                faces[i * 6 + 1] = hasUvs ? i1 : 0;
+                int i1 =
+                        indices[i * 3];
 
-                faces[i * 6 + 2] = i2;
-                faces[i * 6 + 3] = hasUvs ? i2 : 0;
+                int i2 =
+                        indices[i * 3 + 1];
 
-                faces[i * 6 + 4] = i3;
-                faces[i * 6 + 5] = hasUvs ? i3 : 0;
+                int i3 =
+                        indices[i * 3 + 2];
+
+                faces[i * 6] =
+                        i1;
+
+                faces[i * 6 + 1] =
+                        hasUvs ? i1 : 0;
+
+                faces[i * 6 + 2] =
+                        i2;
+
+                faces[i * 6 + 3] =
+                        hasUvs ? i2 : 0;
+
+                faces[i * 6 + 4] =
+                        i3;
+
+                faces[i * 6 + 5] =
+                        hasUvs ? i3 : 0;
             }
-            triangleMesh.getFaces().setAll(faces);
+
+            triangleMesh
+                    .getFaces()
+                    .setAll(faces);
         }
 
         return triangleMesh;
     }
 
-    private PhongMaterial buildMaterial(ScanMesh mesh) {
-        PhongMaterial phongMaterial = new PhongMaterial();
-        Material[] materials = mesh.getVertexMaterials();
+    private PhongMaterial buildMaterial(
+            ScanMesh mesh
+    ) {
 
-        if (materials != null && materials.length > 0 && materials[0] != null) {
-            float[] color = materials[0].getDiffuseColor();
-            if (color != null && color.length >= 3) {
-                phongMaterial.setDiffuseColor(new Color(
-                        Math.clamp(color[0], 0f, 1f),
-                        Math.clamp(color[1], 0f, 1f),
-                        Math.clamp(color[2], 0f, 1f),
-                        color.length > 3 ? Math.clamp(color[3], 0f, 1f) : 1.0
-                ));
+        PhongMaterial phongMaterial =
+                new PhongMaterial();
+
+        Material[] materials =
+                mesh.getVertexMaterials();
+
+        if (materials != null
+                && materials.length > 0
+                && materials[0] != null) {
+
+            float[] color =
+                    materials[0]
+                            .getDiffuseColor();
+
+            if (color != null
+                    && color.length >= 3) {
+
+                phongMaterial.setDiffuseColor(
+                        new Color(
+                                Math.clamp(
+                                        color[0],
+                                        0f,
+                                        1f
+                                ),
+                                Math.clamp(
+                                        color[1],
+                                        0f,
+                                        1f
+                                ),
+                                Math.clamp(
+                                        color[2],
+                                        0f,
+                                        1f
+                                ),
+                                color.length > 3
+                                        ? Math.clamp(
+                                        color[3],
+                                        0f,
+                                        1f
+                                )
+                                        : 1.0
+                        )
+                );
+
             } else {
-                phongMaterial.setDiffuseColor(Color.LIGHTGRAY);
+
+                phongMaterial.setDiffuseColor(
+                        Color.LIGHTGRAY
+                );
             }
+
         } else {
-            phongMaterial.setDiffuseColor(Color.SILVER);
+
+            phongMaterial.setDiffuseColor(
+                    Color.SILVER
+            );
         }
 
-        phongMaterial.setSpecularColor(Color.WHITE);
+        phongMaterial.setSpecularColor(
+                Color.WHITE
+        );
+
         return phongMaterial;
     }
 
     @Override
     public void close() {
+
         Runnable closeTask = () -> {
+
             if (stage != null) {
                 stage.close();
                 stage = null;
@@ -221,7 +428,9 @@ public class JavaFX3DRenderer implements RenderStrategy {
 
     @Override
     public void resetCamera() {
+
         cameraDistance = 2.5f;
+
         positionX = 0.0f;
         positionY = 0.0f;
         positionZ = 0.0f;
@@ -244,41 +453,88 @@ public class JavaFX3DRenderer implements RenderStrategy {
     }
 
     @Override
-    public void move(float x, float y, float z) {
+    public void move(
+            float x,
+            float y,
+            float z
+    ) {
+
         positionX += x;
         positionY += y;
         positionZ += z;
+
         updateTransforms();
     }
 
     @Override
-    public void rotate(float x, float y, float z) {
+    public void rotate(
+            float x,
+            float y,
+            float z
+    ) {
+
         rotationX += x;
         rotationY += y;
         rotationZ += z;
+
         updateTransforms();
     }
 
     @Override
     public void zoom(float amount) {
-        cameraDistance = Math.clamp(cameraDistance + amount, 0.5f, 20.0f);
+
+        cameraDistance =
+                Math.clamp(
+                        cameraDistance + amount,
+                        0.5f,
+                        20.0f
+                );
+
         updateTransforms();
     }
 
     private void updateTransforms() {
+
         Runnable updateTask = () -> {
-            if (rxTransform != null) rxTransform.setAngle(rotationX);
-            if (ryTransform != null) ryTransform.setAngle(rotationY);
-            if (rzTransform != null) rzTransform.setAngle(rotationZ);
+
+            if (rxTransform != null) {
+                rxTransform.setAngle(
+                        rotationX
+                );
+            }
+
+            if (ryTransform != null) {
+                ryTransform.setAngle(
+                        rotationY
+                );
+            }
+
+            if (rzTransform != null) {
+                rzTransform.setAngle(
+                        rotationZ
+                );
+            }
 
             if (tTransform != null) {
-                tTransform.setX(positionX);
-                tTransform.setY(positionY);
-                tTransform.setZ(positionZ);
+
+                tTransform.setX(
+                        positionX
+                );
+
+                tTransform.setY(
+                        positionY
+                );
+
+                tTransform.setZ(
+                        positionZ
+                );
             }
 
             if (cameraTranslate != null) {
-                cameraTranslate.setZ(-cameraDistance);
+
+                cameraTranslate.setZ(
+                        -cameraDistance
+                );
             }
         };
 

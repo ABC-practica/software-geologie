@@ -13,6 +13,7 @@ import org.lwjgl.system.MemoryStack;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -45,15 +46,15 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     private volatile boolean running;
     private volatile boolean renderFinished;
 
-    private final ScanMesh object;
+    private final List<ScanMesh> objects;
 
     private final Map<Texture, Integer> textureIds = new HashMap<>();
     private final Queue<Runnable> commands = new ConcurrentLinkedQueue<>();
 
     private Thread renderThread;
 
-    public OpenGLRenderer(ScanMesh object) {
-        this.object = object;
+    public OpenGLRenderer(List<ScanMesh> objects) {
+        this.objects = objects;
     }
 
     @Override
@@ -148,7 +149,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
             float dy = (float) (y - lastMouseY);
 
             if (rotating) {
-                rotate(-dy * 0.5f, dx * 0.5f, 0.0f);
+                rotate(dy * 0.5f, dx * 0.5f, 0.0f);
             }
 
             if (moving) {
@@ -304,7 +305,9 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         GL11.glRotatef(rotationY, 0.0f, 1.0f, 0.0f);
         GL11.glRotatef(rotationZ, 0.0f, 0.0f, 1.0f);
 
-        drawMesh(object);
+        for (ScanMesh object : objects) {
+            drawMesh(object);
+        }
 
         GLFW.glfwSwapBuffers(window);
     }
@@ -325,21 +328,23 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     }
 
     private void loadTextures() {
-        Material[] materials = object.getVertexMaterials();
+        for (ScanMesh object : objects) {
+            Material[] materials = object.getVertexMaterials();
 
-        if (materials == null) {
-            return;
-        }
-
-        for (Material material : materials) {
-            if (material == null || !material.hasTexture()) {
+            if (materials == null) {
                 continue;
             }
 
-            Texture texture = material.getTexture();
+            for (Material material : materials) {
+                if (material == null || !material.hasTexture()) {
+                    continue;
+                }
 
-            if (!textureIds.containsKey(texture)) {
-                textureIds.put(texture, createTexture(texture));
+                Texture texture = material.getTexture();
+
+                if (!textureIds.containsKey(texture)) {
+                    textureIds.put(texture, createTexture(texture));
+                }
             }
         }
     }

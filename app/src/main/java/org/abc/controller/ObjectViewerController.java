@@ -8,12 +8,13 @@ import org.abc.service.Loader;
 import org.abc.service.ObjLoader;
 import org.abc.service.RenderStrategy;
 import org.abc.service.RenderStrategyFactory;
-import org.abc.service.RendererControl;
 import org.abc.service.ThreeMfLoader;
 import org.abc.util.MeshNormalizer;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ObjectViewerController {
 
@@ -27,12 +28,13 @@ public class ObjectViewerController {
     @FXML
     private void initialize() {
         System.out.println("[INFO] ObjectViewerController initializing...");
+
         Toolbox component = new Toolbox();
 
         try {
             toolbox.getChildren().add(
                     component.create(
-                            this::handleFileSelected,
+                            this::handleFilesSelected,
                             null
                     )
             );
@@ -40,9 +42,16 @@ public class ObjectViewerController {
             toolboxController =
                     component.getController();
 
-            System.out.println("[INFO] ObjectViewerController initialized successfully.");
+            System.out.println(
+                    "[INFO] ObjectViewerController initialized successfully."
+            );
+
         } catch (IOException e) {
-            System.err.println("[ERROR] Failed to load toolbox component: " + e.getMessage());
+            System.err.println(
+                    "[ERROR] Failed to load toolbox component: "
+                            + e.getMessage()
+            );
+
             throw new RuntimeException(
                     "Failed to load toolbox",
                     e
@@ -50,19 +59,35 @@ public class ObjectViewerController {
         }
     }
 
-    private void handleFileSelected(File file) {
-        System.out.println("[INFO] Selected 3D file: " + (file != null ? file.getAbsolutePath() : "null"));
+    private void handleFilesSelected(List<File> files) {
+
+        System.out.println(
+                "[INFO] Selected " + files.size() + " 3D files."
+        );
+
         try {
-            Loader loader =
-                    getLoader(file);
 
-            ScanMesh mesh =
-                    loader.load(file.toPath());
+            List<ScanMesh> meshes = new ArrayList<>();
 
-            mesh =
-                    MeshNormalizer.normalize(mesh);
+            for (File file : files) {
 
-            startRenderer(mesh);
+                System.out.println(
+                        "[INFO] Loading: "
+                                + file.getAbsolutePath()
+                );
+
+                Loader loader = getLoader(file);
+
+                ScanMesh mesh =
+                        loader.load(file.toPath());
+
+                mesh =
+                        MeshNormalizer.normalize(mesh);
+
+                meshes.add(mesh);
+            }
+
+            startRenderer(meshes);
 
         } catch (IOException e) {
 
@@ -89,12 +114,12 @@ public class ObjectViewerController {
         );
     }
 
-    private void startRenderer(ScanMesh mesh) {
+    private void startRenderer(List<ScanMesh> meshes) {
 
         stopRenderer();
 
         RenderStrategy newRenderer =
-                RenderStrategyFactory.createRenderer(mesh);
+                RenderStrategyFactory.createRenderer(meshes);
 
         renderer = newRenderer;
 
