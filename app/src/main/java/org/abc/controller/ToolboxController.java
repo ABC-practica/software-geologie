@@ -4,7 +4,6 @@ import javafx.fxml.FXML;
 import javafx.scene.layout.VBox;
 import javafx.stage.Window;
 import org.abc.component.FileUploadModal;
-import org.abc.component.ObjectTransformModal;
 import org.abc.service.RendererControl;
 
 import java.io.File;
@@ -45,29 +44,6 @@ public class ToolboxController {
                     "Failed to open file upload modal",
                     e
             );
-        }
-    }
-
-    @FXML
-    private void handleObjectTransform() {
-
-        System.out.println("[DEBUG] handleObjectTransform called");
-
-        try {
-            Window owner = root.getScene().getWindow();
-
-            System.out.println("[DEBUG] owner = " + owner);
-
-            ObjectTransformModal modal = new ObjectTransformModal();
-
-            System.out.println("[DEBUG] modal created");
-
-            modal.show(owner, window);
-
-            System.out.println("[DEBUG] modal.show() completed");
-
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 

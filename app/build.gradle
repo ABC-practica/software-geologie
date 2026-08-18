@@ -59,6 +59,12 @@ dependencies {
     runtimeOnly "org.lwjgl:lwjgl-stb:$lwjglVersion:natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-stb:$lwjglVersion:natives-linux"
     runtimeOnly "org.lwjgl:lwjgl-stb:$lwjglVersion:natives-macos"
+
+    implementation "io.github.spair:imgui-java-binding:1.92.7.1"
+    implementation("io.github.spair:imgui-java-lwjgl3:1.92.7.1") {
+        exclude group: "org.lwjgl"
+    }
+    runtimeOnly "io.github.spair:imgui-java-natives-windows:1.92.7.1"
 }
 
 test {

@@ -29,10 +29,6 @@
             maxWidth="Infinity"
             onAction="#handleResetCamera"/>
 
-    <Button text="Object Transform"
-            maxWidth="Infinity"
-            onAction="#handleObjectTransform"/>
-
     <Button text="Close Renderer"
             maxWidth="Infinity"
             onAction="#handleClose"/>

@@ -1,5 +1,9 @@
 package org.abc.service;
 
+import imgui.ImGui;
+import imgui.gl3.ImGuiImplGl3;
+import imgui.glfw.ImGuiImplGlfw;
+import imgui.type.ImFloat;
 import org.abc.model.Material;
 import org.abc.model.ScanMesh;
 import org.abc.model.Texture;
@@ -52,6 +56,16 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     private volatile double pendingClickX = -1;
     private volatile double pendingClickY = -1;
 
+    private final ImFloat guiPositionX = new ImFloat();
+    private final ImFloat guiPositionY = new ImFloat();
+    private final ImFloat guiPositionZ = new ImFloat();
+
+    private final ImFloat guiRotationX = new ImFloat();
+    private final ImFloat guiRotationY = new ImFloat();
+    private final ImFloat guiRotationZ = new ImFloat();
+
+    private int guiObject = -1;
+
     private volatile boolean rotating;
     private volatile boolean moving;
     private volatile boolean cameraRotating;
@@ -64,6 +78,10 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
     private final Map<Texture, Integer> textureIds = new HashMap<>();
     private final Queue<Runnable> commands = new ConcurrentLinkedQueue<>();
+    private final ImGuiImplGlfw imGuiGlfw = new ImGuiImplGlfw();
+    private final ImGuiImplGl3 imGuiGl3 = new ImGuiImplGl3();
+
+    private boolean imguiInitialized = false;
 
     private Thread renderThread;
 
@@ -175,6 +193,10 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
         GLFW.glfwSetMouseButtonCallback(window, (w, button, action, mods) -> {
 
+            if (imguiWantsMouse()) {
+                return;
+            }
+
             double[] x = new double[1];
             double[] y = new double[1];
 
@@ -225,6 +247,12 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         });
 
         GLFW.glfwSetCursorPosCallback(window, (w, x, y) -> {
+
+            if (imguiWantsMouse()) {
+                lastMouseX = x;
+                lastMouseY = y;
+                return;
+            }
 
             float dx = (float) (x - lastMouseX);
             float dy = (float) (y - lastMouseY);
@@ -323,6 +351,20 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         move(worldX, worldY, worldZ);
     }
 
+    private void initializeImGui() {
+
+        ImGui.createContext();
+
+        ImGui.getIO().setIniFilename(null);
+
+        imGuiGlfw.init(window, true);
+        imGuiGl3.init("#version 130");
+
+        imguiInitialized = true;
+
+        System.out.println("[INFO] ImGui initialized.");
+    }
+
     private void renderLoop() {
         try {
             GLFW.glfwMakeContextCurrent(window);
@@ -331,12 +373,21 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
             GLFW.glfwSwapInterval(0);
 
             initializeOpenGL();
+            initializeImGui();
+
             loadTextures();
             updateViewport();
 
             while (running) {
+
                 processCommands();
+
                 render();
+
+                renderImGui();
+
+                GLFW.glfwSwapBuffers(window);
+                GLFW.glfwPollEvents();
             }
         } finally {
             cleanupOpenGL();
@@ -727,7 +778,160 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
             GL11.glPopMatrix();
         }
 
-        GLFW.glfwSwapBuffers(window);
+        //GLFW.glfwSwapBuffers(window);
+    }
+
+    private void renderImGui() {
+
+        if (!imguiInitialized) {
+            return;
+        }
+
+        imGuiGlfw.newFrame();
+        imGuiGl3.newFrame();
+
+        ImGui.newFrame();
+
+        drawTransformPanel();
+
+        ImGui.render();
+
+        imGuiGl3.renderDrawData(
+                ImGui.getDrawData()
+        );
+    }
+
+    private void drawTransformPanel() {
+
+        ImGui.setNextWindowPos(10, 10);
+        ImGui.setNextWindowSize(280, 360);
+
+        if (!ImGui.begin("Object Transform")) {
+            ImGui.end();
+            return;
+        }
+
+        int selected = selectedObject;
+
+        if (selected < 0 || selected >= transforms.size()) {
+
+            guiObject = -1;
+
+            ImGui.text("No object selected");
+
+            ImGui.end();
+            return;
+        }
+
+        ObjectTransform transform =
+                transforms.get(selected);
+
+        /*
+         * New object selected.
+         *
+         * Load its values into the ImGui fields.
+         */
+        if (guiObject != selected) {
+
+            guiObject = selected;
+
+            updateGuiFromTransform(transform);
+        }
+
+        /*
+         * If the user isn't currently editing an ImGui
+         * field, keep the GUI synchronized with the object.
+         *
+         * This is what makes mouse movement appear
+         * immediately in the panel.
+         */
+        if (!ImGui.isAnyItemActive()) {
+            updateGuiFromTransform(transform);
+        }
+
+        ImGui.text("Selected object: " + selected);
+
+        ImGui.separator();
+
+        ImGui.text("Position");
+
+        if (ImGui.inputFloat(
+                "X##position",
+                guiPositionX,
+                0.01f
+        )) {
+            transform.setPositionX(guiPositionX.get());
+        }
+
+        if (ImGui.inputFloat(
+                "Y##position",
+                guiPositionY,
+                0.01f
+        )) {
+            transform.setPositionY(guiPositionY.get());
+        }
+
+        if (ImGui.inputFloat(
+                "Z##position",
+                guiPositionZ,
+                0.01f
+        )) {
+            transform.setPositionZ(guiPositionZ.get());
+        }
+
+        ImGui.separator();
+
+        ImGui.text("Rotation");
+
+        if (ImGui.inputFloat(
+                "X##rotation",
+                guiRotationX,
+                0.5f
+        )) {
+            transform.setRotationX(guiRotationX.get());
+        }
+
+        if (ImGui.inputFloat(
+                "Y##rotation",
+                guiRotationY,
+                0.5f
+        )) {
+            transform.setRotationY(guiRotationY.get());
+        }
+
+        if (ImGui.inputFloat(
+                "Z##rotation",
+                guiRotationZ,
+                0.5f
+        )) {
+            transform.setRotationZ(guiRotationZ.get());
+        }
+
+        ImGui.separator();
+
+        if (ImGui.button("Reset")) {
+
+            resetSelectedObject();
+
+            updateGuiFromTransform(transform);
+        }
+
+        ImGui.end();
+    }
+
+    private void updateGuiFromTransform(ObjectTransform transform) {
+
+        guiPositionX.set(transform.getPositionX());
+        guiPositionY.set(transform.getPositionY());
+        guiPositionZ.set(transform.getPositionZ());
+
+        guiRotationX.set(transform.getRotationX());
+        guiRotationY.set(transform.getRotationY());
+        guiRotationZ.set(transform.getRotationZ());
+    }
+
+    private boolean imguiWantsMouse() {
+        return imguiInitialized && ImGui.getIO().getWantCaptureMouse();
     }
 
     private void updateViewport() {
