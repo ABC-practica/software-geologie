@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.function.Consumer;
 
 public class OpenGLRenderer implements RenderStrategy, Runnable {
 
@@ -40,8 +41,10 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     private volatile float cameraRotationZ = 0.0f;
 
     private final List<ObjectTransform> transforms = new ArrayList<>();
+    private final List<Consumer<Integer>> selectionListeners =
+            new ArrayList<>();
 
-    private int selectedObject = -1;
+    private int selectedObject;
 
     private double lastMouseX;
     private double lastMouseY;
@@ -75,6 +78,32 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
             transforms.add(transform);
         }
+        setSelectedObject(-1);
+    }
+
+    public void addSelectionListener(Consumer<Integer> listener) {
+        selectionListeners.add(listener);
+    }
+
+    public void removeSelectionListener(Consumer<Integer> listener) {
+        selectionListeners.remove(listener);
+    }
+
+    private void setSelectedObject(int index) {
+
+        if (index < -1 || index >= objects.size()) {
+            return;
+        }
+
+        selectedObject = index;
+
+        for (Consumer<Integer> listener : selectionListeners) {
+            listener.accept(index);
+        }
+
+        System.out.println(
+                "[INFO] Selected object: " + selectedObject
+        );
     }
 
     @Override
@@ -539,8 +568,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
             if (id == 0 || id > objects.size()) {
 
-                // Nothing was clicked
-                selectedObject = -1;
+                setSelectedObject(-1);
 
                 rotating = false;
                 cameraRotating = true;
@@ -554,15 +582,10 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
                 if (objectIndex >= 0 &&
                         objectIndex < objects.size()) {
 
-                    selectedObject = objectIndex;
+                    setSelectedObject(objectIndex);
 
                     rotating = true;
                     cameraRotating = false;
-
-                    System.out.println(
-                            "[INFO] Selected object: "
-                                    + selectedObject
-                    );
                 }
             }
         }
@@ -949,6 +972,9 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
             return;
         }
         transforms.get(selectedObject).move(x, y, z);
+        for (Consumer<Integer> listener : selectionListeners) {
+            listener.accept(selectedObject);
+        }
     }
 
     @Override
@@ -957,20 +983,11 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
             return;
         }
         transforms.get(selectedObject).rotate(x, y, z);
-    }
-
-    public void selectObject(int index) {
-
-        if (index < 0 || index >= objects.size()) {
-            return;
+        for (Consumer<Integer> listener : selectionListeners) {
+            listener.accept(selectedObject);
         }
-
-        selectedObject = index;
-
-        System.out.println(
-                "[INFO] Selected object: " + selectedObject
-        );
     }
+
 
     public ObjectTransform getObjectTransform(int index) {
         if (index < 0 || index >= transforms.size()) {

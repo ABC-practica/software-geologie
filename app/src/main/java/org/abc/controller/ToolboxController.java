@@ -50,17 +50,24 @@ public class ToolboxController {
 
     @FXML
     private void handleObjectTransform() {
+
+        System.out.println("[DEBUG] handleObjectTransform called");
+
         try {
             Window owner = root.getScene().getWindow();
 
+            System.out.println("[DEBUG] owner = " + owner);
+
             ObjectTransformModal modal = new ObjectTransformModal();
+
+            System.out.println("[DEBUG] modal created");
+
             modal.show(owner, window);
 
-        } catch (IOException e) {
-            throw new RuntimeException(
-                    "Failed to open object transform panel",
-                    e
-            );
+            System.out.println("[DEBUG] modal.show() completed");
+
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 

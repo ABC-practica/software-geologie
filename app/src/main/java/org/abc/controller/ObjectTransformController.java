@@ -1,10 +1,13 @@
 package org.abc.controller;
 
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import org.abc.model.ObjectTransform;
 import org.abc.service.OpenGLRenderer;
-import org.abc.service.RendererControl;
+
+import java.util.function.Consumer;
 
 public class ObjectTransformController {
 
@@ -30,10 +33,25 @@ public class ObjectTransformController {
     private TextField rotationZ;
 
     private OpenGLRenderer renderer;
+    private final Consumer<Integer> selectionListener =
+            index -> Platform.runLater(this::updateSelectedObject);
 
     public void setRenderer(OpenGLRenderer renderer) {
+
         this.renderer = renderer;
+
+        renderer.addSelectionListener(selectionListener);
+
         updateSelectedObject();
+    }
+
+    @FXML
+    public void handleClose() {
+
+        if (renderer != null) {
+            renderer.removeSelectionListener(selectionListener);
+            renderer = null;
+        }
     }
 
     @FXML
@@ -64,6 +82,10 @@ public class ObjectTransformController {
                     rx, ry, rz
             );
 
+            // Make sure the fields represent
+            // the actual transform after applying.
+            updateSelectedObject();
+
         } catch (NumberFormatException e) {
             System.out.println("Invalid transform values.");
         }
@@ -77,11 +99,7 @@ public class ObjectTransformController {
         }
 
         renderer.resetSelectedObject();
-        updateSelectedObject();
-    }
 
-    @FXML
-    private void handleRefreshSelection() {
         updateSelectedObject();
     }
 
@@ -95,6 +113,15 @@ public class ObjectTransformController {
 
         if (selected < 0) {
             selectedObjectLabel.setText("No object selected");
+
+            positionX.clear();
+            positionY.clear();
+            positionZ.clear();
+
+            rotationX.clear();
+            rotationY.clear();
+            rotationZ.clear();
+
             return;
         }
 
@@ -102,6 +129,46 @@ public class ObjectTransformController {
                 "Selected object: " + selected
         );
 
-        // We will add getters for these next.
+        ObjectTransform transform =
+                renderer.getObjectTransform(selected);
+
+        if (transform == null) {
+            return;
+        }
+
+        positionX.setText(
+                Float.toString(transform.getPositionX())
+        );
+
+        positionY.setText(
+                Float.toString(transform.getPositionY())
+        );
+
+        positionZ.setText(
+                Float.toString(transform.getPositionZ())
+        );
+
+        rotationX.setText(
+                Float.toString(transform.getRotationX())
+        );
+
+        rotationY.setText(
+                Float.toString(transform.getRotationY())
+        );
+
+        rotationZ.setText(
+                Float.toString(transform.getRotationZ())
+        );
+    }
+
+    private void clearFields() {
+
+        positionX.clear();
+        positionY.clear();
+        positionZ.clear();
+
+        rotationX.clear();
+        rotationY.clear();
+        rotationZ.clear();
     }
 }

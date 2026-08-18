@@ -14,6 +14,7 @@ import java.io.IOException;
 public class ObjectTransformModal {
 
     public void show(Window owner, RendererControl renderer) throws IOException {
+        System.out.println("[INFO] Opening Object Transform panel");
 
         FXMLLoader loader = new FXMLLoader(
                 getClass().getResource("/org/abc/fxml/object-transform.fxml")
@@ -23,8 +24,13 @@ public class ObjectTransformModal {
 
         ObjectTransformController controller = loader.getController();
 
-        if(!(renderer instanceof OpenGLRenderer))
+        if (!(renderer instanceof OpenGLRenderer)) {
+            System.out.println(
+                    "[ERROR] Object Transform requires OpenGLRenderer. Actual renderer: "
+                            + (renderer == null ? "null" : renderer.getClass().getName())
+            );
             return;
+        }
 
         controller.setRenderer((OpenGLRenderer) renderer);
 
@@ -35,6 +41,8 @@ public class ObjectTransformModal {
         stage.setScene(new Scene(root));
 
         stage.setResizable(false);
+
+        //stage.setOnHidden(event -> controller.handleClose());
 
         stage.show();
     }
