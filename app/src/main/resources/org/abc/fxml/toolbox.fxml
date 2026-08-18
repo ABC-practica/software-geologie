@@ -2,35 +2,90 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.Label?>
 <?import javafx.scene.layout.VBox?>
 
 <VBox xmlns:fx="http://javafx.com/fxml"
       fx:id="root"
       fx:controller="org.abc.controller.ToolboxController"
-      spacing="10"
-      prefWidth="180"
+
+      prefWidth="300"
+      minWidth="300"
+
+      prefHeight="650"
+      minHeight="500"
+
+      spacing="18"
       fillWidth="true"
-      style="-fx-border-color: #cccccc; -fx-border-width: 0 1 0 0;">
+
+      style="-fx-background-color: #1e1e1e;
+             -fx-border-color: #333333;
+             -fx-border-width: 0 1 0 0;">
 
     <padding>
-        <Insets top="15" right="15" bottom="15" left="15"/>
+        <Insets top="28"
+                right="20"
+                bottom="24"
+                left="20"/>
     </padding>
 
-    <Button fx:id="uploadButton"
-            text="Upload OBJ/3MF"
-            maxWidth="Infinity"
-            onAction="#handleUpload"/>
+    <!-- Title -->
+    <Label text="TOOLS"
+           style="-fx-text-fill: #aaaaaa;
+                  -fx-font-size: 14px;
+                  -fx-font-weight: bold;
+                  -fx-letter-spacing: 2px;"/>
 
-    <Button text="Refresh"
+    <!-- Upload -->
+    <Button fx:id="uploadButton"
+            text="Upload OBJ / 3MF"
             maxWidth="Infinity"
-            onAction="#handleRefresh"/>
+            prefHeight="50"
+            onAction="#handleUpload"
+            defaultButton="true"
+            style="-fx-font-size: 15px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #3f51b5;
+                   -fx-text-fill: white;
+                   -fx-background-radius: 7px;
+                   -fx-border-radius: 7px;
+                   -fx-cursor: hand;"/>
+
+    <!-- Scene -->
+    <Label text="SCENE"
+           style="-fx-text-fill: #aaaaaa;
+                  -fx-font-size: 14px;
+                  -fx-font-weight: bold;
+                  -fx-letter-spacing: 2px;
+                  -fx-padding: 12 0 0 0;"/>
 
     <Button text="Reset Camera"
             maxWidth="Infinity"
-            onAction="#handleResetCamera"/>
+            prefHeight="50"
+            onAction="#handleResetCamera"
+            style="-fx-font-size: 15px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #2b2b2b;
+                   -fx-text-fill: #eeeeee;
+                   -fx-background-radius: 7px;
+                   -fx-border-radius: 7px;
+                   -fx-border-color: #444444;
+                   -fx-border-width: 1px;
+                   -fx-cursor: hand;"/>
 
+    <!-- Renderer -->
     <Button text="Close Renderer"
             maxWidth="Infinity"
-            onAction="#handleClose"/>
+            prefHeight="50"
+            onAction="#handleClose"
+            style="-fx-font-size: 15px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #2b2b2b;
+                   -fx-text-fill: #eeeeee;
+                   -fx-background-radius: 7px;
+                   -fx-border-radius: 7px;
+                   -fx-border-color: #444444;
+                   -fx-border-width: 1px;
+                   -fx-cursor: hand;"/>
 
 </VBox>

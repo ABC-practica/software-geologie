@@ -27,8 +27,8 @@ public class App extends Application {
 
             stage.setTitle("3D Scan Toolbox");
             stage.setScene(scene);
-            stage.setWidth(220);
-            stage.setHeight(300);
+            stage.setWidth(350);
+            stage.setHeight(400);
 
             stage.setOnCloseRequest(event -> {
                 System.out.println("[INFO] Primary stage close requested.");

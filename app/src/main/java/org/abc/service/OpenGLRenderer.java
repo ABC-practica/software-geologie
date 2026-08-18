@@ -90,21 +90,10 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
         for (int i = 0; i < objects.size(); i++) {
             ObjectTransform transform = new ObjectTransform();
-
-            // Preserve your original initial camera/object rotation
-            transform.rotate(25.0f, 35.0f, 0.0f);
-
+            transform.rotate(0.0f, 0.0f, 0.0f);
             transforms.add(transform);
         }
         setSelectedObject(-1);
-    }
-
-    public void addSelectionListener(Consumer<Integer> listener) {
-        selectionListeners.add(listener);
-    }
-
-    public void removeSelectionListener(Consumer<Integer> listener) {
-        selectionListeners.remove(listener);
     }
 
     private void setSelectedObject(int index) {
@@ -147,7 +136,10 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         }
 
         GLFW.glfwDefaultWindowHints();
-        GLFW.glfwWindowHint(GLFW.GLFW_VISIBLE, GLFW.GLFW_FALSE);
+        GLFW.glfwWindowHint(
+                GLFW.GLFW_RESIZABLE,
+                GLFW.GLFW_TRUE
+        );
 
         window = GLFW.glfwCreateWindow(
                 windowWidth,
@@ -176,8 +168,8 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
     private void setupCallbacks() {
         GLFW.glfwSetFramebufferSizeCallback(window, (w, width, height) -> {
-            windowWidth = Math.max(1, width);
-            windowHeight = Math.max(1, height);
+            lastViewportWidth = -1;
+            lastViewportHeight = -1;
         });
 
         GLFW.glfwSetScrollCallback(
@@ -259,14 +251,8 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
             // Rotate selected object
             if (rotating) {
-
-                rotate(
-                        dy * 0.5f,
-                        dx * 0.5f,
-                        0.0f
-                );
+                rotate(dy * 0.5f, dx * 0.5f, 0.0f);
             }
-
             // Rotate camera
             if (cameraRotating) {
 
@@ -281,7 +267,6 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
             // Move camera
             if (cameraMoving) {
-
                 cameraPositionX += dx * 0.005f;
                 cameraPositionY -= dy * 0.005f;
             }
@@ -354,12 +339,16 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     private void initializeImGui() {
 
         ImGui.createContext();
+        ImGui.getIO().getFonts().addFontDefault();
+        ImGui.getIO().getFontDefault();
 
         ImGui.getIO().setIniFilename(null);
 
         imGuiGlfw.init(window, true);
         imGuiGl3.init("#version 130");
 
+
+        ImGui.getIO().setFontGlobalScale(1.75f);
         imguiInitialized = true;
 
         System.out.println("[INFO] ImGui initialized.");
@@ -589,14 +578,48 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         }
 
         // Convert Java/GLFW mouse coordinates to OpenGL framebuffer coordinates
-        int pixelX = (int) mouseX;
+        // GLFW mouse coordinates are in window coordinates.
+        // glReadPixels() uses framebuffer coordinates.
 
-        int pixelY = windowHeight - (int) mouseY;
+        int[] windowWidthArray = new int[1];
+        int[] windowHeightArray = new int[1];
+
+        GLFW.glfwGetWindowSize(
+                window,
+                windowWidthArray,
+                windowHeightArray
+        );
+
+        int[] framebufferWidthArray = new int[1];
+        int[] framebufferHeightArray = new int[1];
+
+        GLFW.glfwGetFramebufferSize(
+                window,
+                framebufferWidthArray,
+                framebufferHeightArray
+        );
+
+        int currentWindowWidth = windowWidthArray[0];
+        int currentWindowHeight = windowHeightArray[0];
+
+        int framebufferWidth = framebufferWidthArray[0];
+        int framebufferHeight = framebufferHeightArray[0];
+
+
+        int pixelX = (int) (
+                mouseX * framebufferWidth / currentWindowWidth
+        );
+
+        int pixelY = (int) (
+                (currentWindowHeight - mouseY)
+                        * framebufferHeight
+                        / currentWindowHeight
+        );
 
         if (pixelX >= 0 &&
-                pixelX < windowWidth &&
+                pixelX < framebufferWidth &&
                 pixelY >= 0 &&
-                pixelY < windowHeight) {
+                pixelY < framebufferHeight) {
 
             ByteBuffer pixel = ByteBuffer.allocateDirect(3);
 
@@ -690,6 +713,14 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     @Override
     public void resetCamera() {
         cameraDistance = 2.5f;
+
+        cameraPositionX = 0.0f;
+        cameraPositionY = 0.0f;
+        cameraPositionZ = 0.0f;
+
+        cameraRotationX = 0.0f;
+        cameraRotationY = 0.0f;
+        cameraRotationZ = 0.0f;
     }
 
     @Override
@@ -777,8 +808,6 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
             GL11.glPopMatrix();
         }
-
-        //GLFW.glfwSwapBuffers(window);
     }
 
     private void renderImGui() {
@@ -786,16 +815,11 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         if (!imguiInitialized) {
             return;
         }
-
         imGuiGlfw.newFrame();
         imGuiGl3.newFrame();
-
         ImGui.newFrame();
-
         drawTransformPanel();
-
         ImGui.render();
-
         imGuiGl3.renderDrawData(
                 ImGui.getDrawData()
         );
@@ -804,7 +828,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     private void drawTransformPanel() {
 
         ImGui.setNextWindowPos(10, 10);
-        ImGui.setNextWindowSize(280, 360);
+        ImGui.setNextWindowSize(340, 430);
 
         if (!ImGui.begin("Object Transform")) {
             ImGui.end();
@@ -816,9 +840,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         if (selected < 0 || selected >= transforms.size()) {
 
             guiObject = -1;
-
             ImGui.text("No object selected");
-
             ImGui.end();
             return;
         }
@@ -935,18 +957,38 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     }
 
     private void updateViewport() {
-        int width = windowWidth;
-        int height = windowHeight;
 
-        if (width == lastViewportWidth && height == lastViewportHeight) {
+        int[] width = new int[1];
+        int[] height = new int[1];
+
+        GLFW.glfwGetFramebufferSize(
+                window,
+                width,
+                height
+        );
+
+        int framebufferWidth = Math.max(1, width[0]);
+        int framebufferHeight = Math.max(1, height[0]);
+
+        if (framebufferWidth == lastViewportWidth &&
+                framebufferHeight == lastViewportHeight) {
             return;
         }
 
-        lastViewportWidth = width;
-        lastViewportHeight = height;
+        lastViewportWidth = framebufferWidth;
+        lastViewportHeight = framebufferHeight;
 
-        GL11.glViewport(0, 0, width, height);
-        updateProjection(width, height);
+        GL11.glViewport(
+                0,
+                0,
+                framebufferWidth,
+                framebufferHeight
+        );
+
+        updateProjection(
+                framebufferWidth,
+                framebufferHeight
+        );
     }
 
     private void loadTextures() {
@@ -1042,6 +1084,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
     }
 
     private void updateProjection(int width, int height) {
+
         if (height <= 0) {
             return;
         }
@@ -1049,19 +1092,23 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         GL11.glMatrixMode(GL11.GL_PROJECTION);
         GL11.glLoadIdentity();
 
-        float aspect = (float) width / height;
+        float aspect = (float) width / (float) height;
+
         float near = 0.1f;
         float far = 100.0f;
         float fov = 60.0f;
 
-        float yScale = (float) (1.0 / Math.tan(Math.toRadians(fov / 2.0)));
-        float xScale = yScale / aspect;
+        float halfHeight =
+                near * (float) Math.tan(Math.toRadians(fov / 2.0));
+
+        float halfWidth =
+                halfHeight * aspect;
 
         GL11.glFrustum(
-                -near * xScale,
-                near * xScale,
-                -near * yScale,
-                near * yScale,
+                -halfWidth,
+                halfWidth,
+                -halfHeight,
+                halfHeight,
                 near,
                 far
         );
@@ -1248,16 +1295,9 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
 
         // Restore your initial rotation
         transforms.get(selectedObject).rotate(
-                25.0f,
-                35.0f,
+                0.0f,
+                0.0f,
                 0.0f
         );
-    }
-
-    public void resetAllObjects() {
-        for (ObjectTransform transform : transforms) {
-            transform.reset();
-            transform.rotate(25.0f, 35.0f, 0.0f);
-        }
     }
 }

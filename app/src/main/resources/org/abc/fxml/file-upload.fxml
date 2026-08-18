@@ -7,18 +7,34 @@
 
 <VBox xmlns:fx="http://javafx.com/fxml"
       fx:controller="org.abc.controller.FileUploadController"
-      spacing="15"
+      spacing="18"
       alignment="CENTER"
-      prefWidth="400"
-      prefHeight="200">
+      prefWidth="420"
+      prefHeight="230"
+      style="-fx-background-color: #1e1e1e;">
 
     <padding>
-        <Insets top="20" right="20" bottom="20" left="20"/>
+        <Insets top="30" right="30" bottom="30" left="30"/>
     </padding>
 
-    <Label text="Select a 3D scan (.obj/.3mf)"/>
+    <Label text="Import 3D Model"
+           style="-fx-font-size: 22px;
+                  -fx-font-weight: bold;
+                  -fx-text-fill: #e1e1e1;"/>
+
+    <Label text="Select a 3D scan (.obj or .3mf)"
+           style="-fx-font-size: 14px;
+                  -fx-text-fill: #7c7c7c;"/>
 
     <Button text="Choose File"
-            onAction="#handleChooseFile"/>
+            onAction="#handleChooseFile"
+            prefWidth="180"
+            prefHeight="40"
+            style="-fx-font-size: 14px;
+                   -fx-font-weight: bold;
+                   -fx-background-color: #3f51b5;
+                   -fx-text-fill: white;
+                   -fx-background-radius: 6px;
+                   -fx-cursor: hand;"/>
 
 </VBox>
