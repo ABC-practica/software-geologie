@@ -28,8 +28,6 @@ import java.util.function.Consumer;
 public class OpenGLRenderer implements RenderStrategy, Runnable {
 
     private volatile long window;
-    private volatile int windowWidth = 800;
-    private volatile int windowHeight = 600;
 
     private int lastViewportWidth = -1;
     private int lastViewportHeight = -1;
@@ -141,6 +139,8 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
                 GLFW.GLFW_TRUE
         );
 
+        int windowWidth = 800;
+        int windowHeight = 600;
         window = GLFW.glfwCreateWindow(
                 windowWidth,
                 windowHeight,
@@ -311,7 +311,6 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         // Camera RIGHT
         float rightX = cr * cy;
         float rightY = -sr * cy;
-        float rightZ = sy;
 
         // Camera UP
         float upX = sp * sy * cr + sr * cp;
@@ -330,7 +329,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
                         upY * screenUp;
 
         float worldZ =
-                rightZ * screenRight +
+                sy * screenRight +
                         upZ * screenUp;
 
         move(worldX, worldY, worldZ);
@@ -638,7 +637,6 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
             int b = Byte.toUnsignedInt(pixel.get(2));
 
             int id = r | (g << 8) | (b << 16);
-            System.out.println(id);
 
             if (id == 0 || id > objects.size()) {
 
@@ -880,7 +878,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         if (ImGui.inputFloat(
                 "X##position",
                 guiPositionX,
-                0.01f
+                0.1f
         )) {
             transform.setPositionX(guiPositionX.get());
         }
@@ -888,7 +886,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         if (ImGui.inputFloat(
                 "Y##position",
                 guiPositionY,
-                0.01f
+                0.1f
         )) {
             transform.setPositionY(guiPositionY.get());
         }
@@ -896,7 +894,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         if (ImGui.inputFloat(
                 "Z##position",
                 guiPositionZ,
-                0.01f
+                0.1f
         )) {
             transform.setPositionZ(guiPositionZ.get());
         }
@@ -908,7 +906,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         if (ImGui.inputFloat(
                 "X##rotation",
                 guiRotationX,
-                0.5f
+                1f
         )) {
             transform.setRotationX(guiRotationX.get());
         }
@@ -916,7 +914,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         if (ImGui.inputFloat(
                 "Y##rotation",
                 guiRotationY,
-                0.5f
+                1f
         )) {
             transform.setRotationY(guiRotationY.get());
         }
@@ -924,7 +922,7 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         if (ImGui.inputFloat(
                 "Z##rotation",
                 guiRotationZ,
-                0.5f
+                1f
         )) {
             transform.setRotationZ(guiRotationZ.get());
         }
@@ -1237,53 +1235,6 @@ public class OpenGLRenderer implements RenderStrategy, Runnable {
         for (Consumer<Integer> listener : selectionListeners) {
             listener.accept(selectedObject);
         }
-    }
-
-
-    public ObjectTransform getObjectTransform(int index) {
-        if (index < 0 || index >= transforms.size()) {
-            return null;
-        }
-
-        return transforms.get(index);
-    }
-
-    public void setObjectTransform(
-            int index,
-            float positionX,
-            float positionY,
-            float positionZ,
-            float rotationX,
-            float rotationY,
-            float rotationZ
-    ) {
-        if (index < 0 || index >= transforms.size()) {
-            return;
-        }
-
-        ObjectTransform transform = transforms.get(index);
-
-        transform.reset();
-
-        transform.move(
-                positionX,
-                positionY,
-                positionZ
-        );
-
-        transform.rotate(
-                rotationX,
-                rotationY,
-                rotationZ
-        );
-    }
-
-    public int getObjectCount() {
-        return objects.size();
-    }
-
-    public int getSelectedObject() {
-        return selectedObject;
     }
 
     public void resetSelectedObject() {
